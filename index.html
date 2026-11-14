@@ -662,7 +662,7 @@
 
     .branches-grid {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px;
       background-color: var(--bg-card-subtle);
       padding: 8px;
@@ -672,11 +672,7 @@
 
     @media (max-width: 600px) {
       .branches-grid {
-        grid-template-columns: repeat(3, 1fr);
-      }
-      .branch-col:nth-child(4),
-      .branch-col:nth-child(5) {
-        grid-column: span 1;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
@@ -1093,7 +1089,6 @@
     <div class="branch-selector-scroll" id="branchSelector">
       <button class="branch-pill active" data-branch="todas">Todas las Sucursales</button>
       <button class="branch-pill" data-branch="corrientes">Corrientes</button>
-      <button class="branch-pill" data-branch="resguardo">Resguardo</button>
       <button class="branch-pill" data-branch="misiones">Misiones</button>
       <button class="branch-pill" data-branch="formosa">Formosa</button>
       <button class="branch-pill" data-branch="chaco">Chaco</button>
@@ -1582,6 +1577,25 @@
       }
 
       function setStockDataset(payload) {
+        if (payload && Array.isArray(payload.articulos)) {
+          let conStockCount = 0;
+          for (let i = 0; i < payload.articulos.length; i++) {
+            const item = payload.articulos[i];
+            const corr = Number(item.corrientes) || 0;
+            const misi = Number(item.misiones) || 0;
+            const form = Number(item.formosa) || 0;
+            const chac = Number(item.chaco) || 0;
+            const totalCalc = corr + misi + form + chac;
+            item.corrientes = corr;
+            item.misiones = misi;
+            item.formosa = form;
+            item.chaco = chac;
+            item.total = totalCalc;
+            item.con_stock = totalCalc > 0;
+            if (item.con_stock) conStockCount++;
+          }
+          payload.articulos_con_stock = conStockCount;
+        }
         state.rawData = payload;
         const total = payload.total_articulos || (payload.articulos ? payload.articulos.length : 0);
         dom.totalCount.textContent = total.toLocaleString("es-AR");
@@ -1723,12 +1737,15 @@
         const card = document.createElement("article");
         card.className = "product-card";
 
-        const totalStock = Number(item.total) || 0;
+        const totalStock =
+          (Number(item.corrientes) || 0) +
+          (Number(item.misiones) || 0) +
+          (Number(item.formosa) || 0) +
+          (Number(item.chaco) || 0);
         const totalPillClass = totalStock > 0 ? "positive" : "zero";
 
         const branches = [
           { key: "corrientes", name: "Corrientes" },
-          { key: "resguardo", name: "Resguardo" },
           { key: "misiones", name: "Misiones" },
           { key: "formosa", name: "Formosa" },
           { key: "chaco", name: "Chaco" }
@@ -1767,8 +1784,13 @@
       }
 
       function escapeHtml(text) {
-        if (!text) return "";
-        return text.replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        if (text === null || text === undefined) return "";
+        return String(text)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
       }
 
       function resetFilters() {
@@ -1911,8 +1933,7 @@
         const idx = (fn, def) => { const i = headers.findIndex(fn); return i === -1 ? def : i; };
         const artIdx = idx(h => h.includes("art") || h.includes("cod"), 0);
         const descrIdx = idx(h => h.includes("descr") || h.includes("prod") || h.includes("nom"), 1);
-        const corrIdx = idx(h => h.includes("corr"), 2);
-        const resgIdx = idx(h => h.includes("resg"), 3);
+        const corrIdx = idx(h => h.includes("corr") && !h.includes("resg"), 2);
         const misiIdx = idx(h => h.includes("misi"), 4);
         const formIdx = idx(h => h.includes("form"), 5);
         const chacIdx = idx(h => h.includes("chac"), 6);
@@ -1931,14 +1952,13 @@
           const artVal = parseInt(cols[artIdx], 10) || i;
           const descrVal = cols[descrIdx] ? cols[descrIdx].trim() : `ARTÍCULO ${artVal}`;
           const corr = parseNum(cols[corrIdx]);
-          const resg = parseNum(cols[resgIdx]);
           const misi = parseNum(cols[misiIdx]);
           const form = parseNum(cols[formIdx]);
           const chac = parseNum(cols[chacIdx]);
-          const total = corr + resg + misi + form + chac;
-          const conStock = total > 0.0001;
+          const total = corr + misi + form + chac;
+          const conStock = total > 0;
           if (conStock) conStockCount++;
-          articulos.push({ art: artVal, descr: descrVal, corrientes: corr, resguardo: resg, misiones: misi, formosa: form, chaco: chac, total: total, con_stock: conStock });
+          articulos.push({ art: artVal, descr: descrVal, corrientes: corr, misiones: misi, formosa: form, chaco: chac, total: total, con_stock: conStock });
         }
         return { updated_at: new Date().toISOString(), source_file: fileName, total_articulos: articulos.length, articulos_con_stock: conStockCount, articulos: articulos };
       }
@@ -1956,8 +1976,7 @@
         const idx = (fn, def) => { const i = headers.findIndex(fn); return i === -1 ? def : i; };
         const artIdx = idx(h => h.includes("art") || h.includes("cod"), 0);
         const descrIdx = idx(h => h.includes("descr") || h.includes("prod"), 1);
-        const corrIdx = idx(h => h.includes("corr"), 2);
-        const resgIdx = idx(h => h.includes("resg"), 3);
+        const corrIdx = idx(h => h.includes("corr") && !h.includes("resg"), 2);
         const misiIdx = idx(h => h.includes("misi"), 4);
         const formIdx = idx(h => h.includes("form"), 5);
         const chacIdx = idx(h => h.includes("chac"), 6);
@@ -1977,14 +1996,13 @@
           const artVal = parseInt(row[artIdx], 10) || i;
           const descrVal = row[descrIdx] ? String(row[descrIdx]).trim() : `ARTÍCULO ${artVal}`;
           const corr = parseNum(row[corrIdx]);
-          const resg = parseNum(row[resgIdx]);
           const misi = parseNum(row[misiIdx]);
           const form = parseNum(row[formIdx]);
           const chac = parseNum(row[chacIdx]);
-          const total = corr + resg + misi + form + chac;
-          const conStock = total > 0.0001;
+          const total = corr + misi + form + chac;
+          const conStock = total > 0;
           if (conStock) conStockCount++;
-          articulos.push({ art: artVal, descr: descrVal, corrientes: corr, resguardo: resg, misiones: misi, formosa: form, chaco: chac, total: total, con_stock: conStock });
+          articulos.push({ art: artVal, descr: descrVal, corrientes: corr, misiones: misi, formosa: form, chaco: chac, total: total, con_stock: conStock });
         }
         return { updated_at: new Date().toISOString(), source_file: fileName, total_articulos: articulos.length, articulos_con_stock: conStockCount, articulos: articulos };
       }
