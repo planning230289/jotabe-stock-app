@@ -1,0 +1,2069 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1e3a8a">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Consulta rápida de stock por sucursal para Jota Be en celular y escritorio.">
+  <title>Jota Be — Stock Móvil</title>
+
+  <!-- Datos embebidos / configuración de sincronización privada -->
+  <script src="stock_data.js"></script>
+  <!-- Generador de códigos QR -->
+  <script src="qrcode.min.js"></script>
+  <!-- Parser de Excel para importar nuevos archivos desde el celular -->
+  <script src="xlsx.mini.min.js"></script>
+
+  <style>
+    /* ==========================================================================
+       1. VARIABLES Y SISTEMA DE DISEÑO (MOBILE-FIRST)
+       ========================================================================== */
+    :root {
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --bg-body: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-card: #ffffff;
+      --bg-card-subtle: #f1f5f9;
+      --border-subtle: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --text-soft: #94a3b8;
+      --brand-primary: #1e40af;
+      --brand-secondary: #2563eb;
+      --brand-accent: #3b82f6;
+      --brand-gradient: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+      --stock-pos-bg: #dcfce7;
+      --stock-pos-border: #86efac;
+      --stock-pos-text: #166534;
+      --stock-zero-bg: #f1f5f9;
+      --stock-zero-border: #e2e8f0;
+      --stock-zero-text: #94a3b8;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+    }
+
+    [data-theme="dark"] {
+      --bg-body: #0b0f19;
+      --bg-surface: #131b2e;
+      --bg-card: #182238;
+      --bg-card-subtle: #1e293b;
+      --border-subtle: #26334d;
+      --border-strong: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-soft: #64748b;
+      --brand-primary: #3b82f6;
+      --brand-secondary: #60a5fa;
+      --brand-accent: #93c5fd;
+      --brand-gradient: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
+      --stock-pos-bg: #064e3b;
+      --stock-pos-border: #059669;
+      --stock-pos-text: #6ee7b7;
+      --stock-zero-bg: #1e293b;
+      --stock-zero-border: #334155;
+      --stock-zero-text: #64748b;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.6);
+    }
+
+    /* ==========================================================================
+       2. RESET Y BASE
+       ========================================================================== */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      font-family: var(--font-family);
+      background-color: var(--bg-body);
+      color: var(--text-main);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.4;
+      padding-bottom: env(safe-area-inset-bottom, 24px);
+    }
+
+    /* ==========================================================================
+       3. CABECERA FIJA SUPERIOR
+       ========================================================================== */
+    .top-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background-color: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-sm);
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .header-content {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      background: var(--brand-gradient);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+      flex-shrink: 0;
+    }
+
+    .brand-icon svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .brand-text h1 {
+      font-size: 1.1rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      color: var(--text-main);
+    }
+
+    .brand-status-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+      flex-wrap: wrap;
+    }
+
+    .header-stock-date {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+      letter-spacing: 0.01em;
+      margin-top: 1px;
+      display: none;
+    }
+
+    .header-stock-date.visible {
+      display: inline;
+    }
+
+    .header-stock-date strong {
+      color: var(--brand-primary);
+    }
+
+    [data-theme="dark"] .header-stock-date strong {
+      color: var(--brand-accent);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      background-color: var(--bg-card-subtle);
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+    }
+
+    .status-badge.online {
+      color: #15803d;
+      background-color: #dcfce7;
+      border-color: #86efac;
+    }
+
+    [data-theme="dark"] .status-badge.online {
+      color: #4ade80;
+      background-color: #064e3b;
+      border-color: #059669;
+    }
+
+    .status-badge.offline {
+      color: #b45309;
+      background-color: #fef3c7;
+      border-color: #fde68a;
+    }
+
+    [data-theme="dark"] .status-badge.offline {
+      color: #fbbf24;
+      background-color: #78350f;
+      border-color: #92400e;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: currentColor;
+    }
+
+    .status-badge.online .status-dot {
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-md);
+      background-color: var(--bg-card-subtle);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.15s ease, transform 0.1s ease;
+    }
+
+    .btn-icon:active {
+      transform: scale(0.92);
+      background-color: var(--border-subtle);
+    }
+
+    .btn-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .btn-install {
+      height: 38px;
+      padding: 0 10px;
+      border-radius: var(--radius-md);
+      background: var(--brand-gradient);
+      border: 1px solid var(--brand-secondary);
+      color: #ffffff;
+      font-size: 0.78rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+      transition: transform 0.1s ease, opacity 0.15s ease;
+    }
+
+    .btn-install:active {
+      transform: scale(0.94);
+    }
+
+    .btn-install[hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 380px) {
+      .header-content {
+        padding-left: 8px;
+        padding-right: 8px;
+        gap: 6px;
+      }
+
+      .brand-section {
+        gap: 6px;
+      }
+
+      .brand-icon {
+        width: 34px;
+        height: 34px;
+      }
+
+      .brand-text h1 {
+        font-size: 1rem;
+      }
+
+      .header-stock-date {
+        display: none !important;
+      }
+
+      .header-actions {
+        gap: 3px;
+      }
+
+      .btn-icon {
+        width: 32px;
+        height: 32px;
+      }
+
+      .btn-icon svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      .btn-install {
+        height: 32px;
+        padding: 0 7px;
+        font-size: 0.72rem;
+      }
+    }
+
+    .btn-icon[hidden] {
+      display: none;
+    }
+
+    .spin {
+      animation: spin-anim 0.8s linear infinite;
+    }
+
+    @keyframes spin-anim {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* ==========================================================================
+       4. BANNER OFFLINE INFORMATIVO
+       ========================================================================== */
+    .offline-banner {
+      display: none;
+      background: linear-gradient(90deg, #f59e0b, #d97706);
+      color: #ffffff;
+      padding: 6px 16px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      text-align: center;
+      box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1);
+    }
+
+    .offline-banner.visible {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .offline-banner button {
+      background: rgba(255, 255, 255, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      color: white;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* ==========================================================================
+       5. SECCIÓN DE BÚSQUEDA Y FILTROS
+       ========================================================================== */
+    .controls-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 12px 16px 8px 16px;
+    }
+
+    .search-box-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 14px;
+      width: 20px;
+      height: 20px;
+      color: var(--text-soft);
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      height: 48px;
+      padding: 0 44px 0 44px;
+      font-size: 1rem;
+      font-weight: 500;
+      border-radius: var(--radius-md);
+      border: 1.5px solid var(--border-strong);
+      background-color: var(--bg-surface);
+      color: var(--text-main);
+      box-shadow: var(--shadow-sm);
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .search-input:focus {
+      border-color: var(--brand-accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-soft);
+      font-weight: 400;
+    }
+
+    .search-clear-btn {
+      position: absolute;
+      right: 12px;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--bg-card-subtle);
+      border: none;
+      color: var(--text-muted);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .search-clear-btn.visible {
+      display: flex;
+    }
+
+    .search-clear-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .filter-toggles-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .pill-toggles {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .toggle-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      font-size: 0.8rem;
+      font-weight: 600;
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+
+    .toggle-chip input[type="checkbox"] {
+      display: none;
+    }
+
+    .toggle-chip.active {
+      background-color: var(--brand-primary);
+      color: #ffffff;
+      border-color: var(--brand-primary);
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+    }
+
+    .branch-selector-scroll {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      margin-top: 10px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .branch-selector-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .branch-pill {
+      flex-shrink: 0;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      font-size: 0.78rem;
+      font-weight: 600;
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .branch-pill:active {
+      transform: scale(0.95);
+    }
+
+    .branch-pill.active {
+      background-color: var(--text-main);
+      color: var(--bg-surface);
+      border-color: var(--text-main);
+    }
+
+    .results-summary-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      padding: 0 2px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .counter-highlight {
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    /* ==========================================================================
+       6. LISTA DE ARTÍCULOS Y TARJETAS DETALLADAS
+       ========================================================================== */
+    .articles-container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 8px 16px 80px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .product-card {
+      background-color: var(--bg-card);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-sm);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: transform 0.1s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .product-card:hover {
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-md);
+    }
+
+    .card-top-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .art-badge-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .art-badge {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: var(--radius-sm);
+      background-color: var(--bg-card-subtle);
+      color: var(--brand-secondary);
+      border: 1px solid var(--border-subtle);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+      flex-shrink: 0;
+    }
+
+    .product-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.25;
+      text-transform: uppercase;
+      word-break: break-word;
+    }
+
+    .total-stock-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      flex-shrink: 0;
+      min-width: 95px;
+    }
+
+    .total-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-soft);
+      margin-bottom: 2px;
+    }
+
+    .total-number-pill {
+      font-size: 1.15rem;
+      font-weight: 800;
+      padding: 4px 12px;
+      border-radius: var(--radius-md);
+      font-variant-numeric: tabular-nums;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      border: 1px solid transparent;
+    }
+
+    .total-number-pill.positive {
+      background-color: var(--stock-pos-bg);
+      border-color: var(--stock-pos-border);
+      color: var(--stock-pos-text);
+    }
+
+    .total-number-pill.zero {
+      background-color: var(--stock-zero-bg);
+      border-color: var(--stock-zero-border);
+      color: var(--stock-zero-text);
+    }
+
+    .branches-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      background-color: var(--bg-card-subtle);
+      padding: 8px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+    }
+
+    @media (max-width: 600px) {
+      .branches-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .branch-col:nth-child(4),
+      .branch-col:nth-child(5) {
+        grid-column: span 1;
+      }
+    }
+
+    .branch-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 6px 4px;
+      border-radius: var(--radius-sm);
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      transition: border-color 0.15s ease;
+    }
+
+    .branch-col.selected-branch {
+      border-color: var(--brand-accent);
+      box-shadow: 0 0 0 1.5px var(--brand-accent);
+    }
+
+    .branch-col.has-stock {
+      background-color: var(--stock-pos-bg);
+      border-color: var(--stock-pos-border);
+    }
+
+    .branch-name {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+    }
+
+    .branch-col.has-stock .branch-name {
+      color: var(--stock-pos-text);
+    }
+
+    .branch-value {
+      font-size: 0.92rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-main);
+    }
+
+    .branch-col.has-stock .branch-value {
+      color: var(--stock-pos-text);
+    }
+
+    .branch-col.is-zero .branch-value {
+      color: var(--text-soft);
+      font-weight: 500;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      background-color: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      border: 1px dashed var(--border-strong);
+      margin-top: 20px;
+    }
+
+    .empty-state svg {
+      width: 48px;
+      height: 48px;
+      color: var(--text-soft);
+      margin-bottom: 12px;
+    }
+
+    .empty-state h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .empty-state p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .empty-state button {
+      background-color: var(--brand-primary);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: var(--radius-full);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    #scrollSentinel {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-soft);
+      font-size: 0.8rem;
+    }
+
+    /* ==========================================================================
+       7. MODALES Y CONTROLES FLOTANTES
+       ========================================================================== */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-card {
+      background-color: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 440px;
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      animation: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modal-in {
+      from { transform: scale(0.92) translateY(10px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .modal-header h3 {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      border-radius: var(--radius-sm);
+    }
+
+    .modal-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .token-input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      border: 1.5px solid var(--border-strong);
+      background-color: var(--bg-card-subtle);
+      color: var(--text-main);
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+
+    .modal-btn {
+      width: 100%;
+      height: 44px;
+      border-radius: var(--radius-md);
+      font-size: 0.9rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .modal-btn.primary {
+      background: var(--brand-gradient);
+      color: white;
+    }
+
+    .modal-btn.secondary {
+      background: var(--bg-card-subtle);
+      color: var(--text-main);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .modal-instructions {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+      background: var(--bg-card-subtle);
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      border-left: 3px solid var(--brand-secondary);
+    }
+
+    .file-dropzone {
+      border: 2px dashed var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 24px 16px;
+      text-align: center;
+      background: var(--bg-card-subtle);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .file-dropzone svg {
+      width: 36px;
+      height: 36px;
+      color: var(--brand-secondary);
+    }
+
+    .file-status-box {
+      display: none;
+      background: var(--stock-pos-bg);
+      border: 1px solid var(--stock-pos-border);
+      color: var(--stock-pos-text);
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .btn-to-top {
+      position: fixed;
+      bottom: 24px;
+      right: 20px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--brand-primary);
+      color: white;
+      border: none;
+      box-shadow: var(--shadow-lg);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 90;
+    }
+
+    .btn-to-top.visible {
+      display: flex;
+    }
+
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background-color: #0f172a;
+      color: #ffffff;
+      padding: 10px 18px;
+      border-radius: var(--radius-full);
+      font-size: 0.82rem;
+      font-weight: 600;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.4);
+      z-index: 300;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+      opacity: 0;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast-container.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- CABECERA PRINCIPAL STICKY -->
+  <header class="top-header">
+    <div class="header-content">
+      <div class="brand-section">
+        <div class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>JOTA BE</h1>
+          <div class="brand-status-row">
+            <span id="headerStatusBadge" class="status-badge online" title="Estado de sincronización">
+              <span class="status-dot"></span>
+              <span id="headerStatusText">En Línea</span>
+            </span>
+            <span id="headerStockDate" class="header-stock-date" title="Fecha y hora de la última toma de datos"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTONES DE ACCIÓN RÁPIDA -->
+      <div class="header-actions">
+        <!-- Configurar llave privada de GitHub -->
+        <button id="btnOpenCloud" class="btn-icon" title="Configurar llave privada de sincronización" aria-label="Configurar llave">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+          </svg>
+        </button>
+
+        <!-- Cargar archivo Excel/CSV directamente -->
+        <button id="btnOpenUpload" class="btn-icon" title="Cargar archivo nuevo desde el celular" aria-label="Cargar archivo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </button>
+
+        <!-- Sincronizar / Refrescar -->
+        <button id="btnRefresh" class="btn-icon" title="Sincronizar stock más reciente" aria-label="Sincronizar stock">
+          <svg id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
+
+        <!-- Instalar aplicación -->
+        <button id="btn-install" class="btn-install" type="button" title="Instalar aplicación en pantalla de inicio" aria-label="Instalar aplicación">
+          <span>📲 Instalar</span>
+        </button>
+
+        <!-- Alternar Tema Claro/Oscuro -->
+        <button id="btnToggleTheme" class="btn-icon" title="Modo Claro / Oscuro" aria-label="Modo Claro / Oscuro">
+          <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- BANNER DE ALERTA FUERA DE LÍNEA -->
+    <div id="offlineBanner" class="offline-banner">
+      <span id="offlineBannerMsg">⚡ Modo Fuera de Línea — Mostrando stock guardado previamente.</span>
+      <button id="btnBannerRetry" type="button">Reintentar</button>
+    </div>
+  </header>
+
+  <!-- SECCIÓN FIJA DE CONTROLES -->
+  <section class="controls-container">
+    <div class="search-box-wrapper">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+      <input
+        type="search"
+        id="searchInput"
+        class="search-input"
+        placeholder="Buscar por código o producto (ej: natura 900, 79, fernet)..."
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+      />
+      <button id="searchClearBtn" class="search-clear-btn" title="Limpiar búsqueda" aria-label="Limpiar búsqueda">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <div class="filter-toggles-row">
+      <div class="pill-toggles">
+        <label class="toggle-chip active" id="chipOnlyStock">
+          <input type="checkbox" id="chkOnlyStock" checked>
+          <span>Solo con stock</span>
+        </label>
+        <label class="toggle-chip active" id="chipHideZ">
+          <input type="checkbox" id="chkHideZ" checked>
+          <span>Ocultar anulados (Z-)</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="branch-selector-scroll" id="branchSelector">
+      <button class="branch-pill active" data-branch="todas">Todas las Sucursales</button>
+      <button class="branch-pill" data-branch="corrientes">Corrientes</button>
+      <button class="branch-pill" data-branch="resguardo">Resguardo</button>
+      <button class="branch-pill" data-branch="misiones">Misiones</button>
+      <button class="branch-pill" data-branch="formosa">Formosa</button>
+      <button class="branch-pill" data-branch="chaco">Chaco</button>
+    </div>
+
+    <div class="results-summary-row">
+      <span>
+        Mostrando <span id="visibleCount" class="counter-highlight">0</span> de <span id="totalCount" class="counter-highlight">0</span> artículos
+      </span>
+      <span id="updateTimestampText">Actualizado: --/-- --:--</span>
+    </div>
+  </section>
+
+  <!-- LISTADO DINÁMICO DE PRODUCTOS -->
+  <main class="articles-container" id="articlesList" role="feed" aria-busy="false"></main>
+
+  <div id="scrollSentinel">Cargando más artículos...</div>
+
+  <button id="btnToTop" class="btn-to-top" title="Volver al inicio" aria-label="Volver arriba">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+      <polyline points="18 15 12 9 6 15"></polyline>
+    </svg>
+  </button>
+
+  <!-- MODAL 1: LLAVE PRIVADA DE SINCRONIZACIÓN GITHUB -->
+  <div id="modalCloud" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalCloudTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalCloudTitle">Sincronización Privada (GitHub)</h3>
+        <button class="modal-close-btn" data-close-modal="modalCloud" aria-label="Cerrar ventana">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-instructions">
+          Conectado al repositorio privado <strong>planning230289/jotabe-stock</strong>. La app descarga los datos encriptados por HTTPS tanto por 4G como por Wi-Fi, incluso con la PC apagada.
+        </div>
+        <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-main);">
+          Token de acceso (Fine-grained PAT):
+        </label>
+        <input type="password" id="githubTokenInput" class="token-input" placeholder="github_pat_...">
+        <button id="btnSaveToken" class="modal-btn primary">Guardar llave y sincronizar ahora</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: CARGAR ARCHIVO MANUAL DESDE CELULAR -->
+  <div id="modalUpload" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalUploadTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalUploadTitle">Actualizar Archivo Manualmente</h3>
+        <button class="modal-close-btn" data-close-modal="modalUpload" aria-label="Cerrar ventana">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+          Si recibiste un archivo <strong>Excel (.xlsx)</strong> o <strong>CSV</strong> por WhatsApp, podés cargarlo acá para actualizar el teléfono sin internet.
+        </p>
+
+        <label class="file-dropzone" for="fileInputUpload">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="12" y1="18" x2="12" y2="12"></line>
+            <line x1="9" y1="15" x2="12" y2="12"></line>
+            <line x1="15" y1="15" x2="12" y2="12"></line>
+          </svg>
+          <span style="font-weight: 700; color: var(--text-main);">Tocar para elegir archivo</span>
+          <span style="font-size: 0.75rem; color: var(--text-soft);">Formatos: .xlsx, .csv</span>
+          <input type="file" id="fileInputUpload" accept=".xlsx,.csv,.xls" style="display: none;">
+        </label>
+
+        <div id="fileUploadStatus" class="file-status-box"></div>
+
+        <button id="btnSaveUploadedFile" class="modal-btn primary" style="display: none;">
+          Aplicar y Guardar en Celular
+        </button>
+
+        <button id="btnResetToDefault" class="modal-btn secondary">
+          Sincronizar desde la nube privada
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: INSTRUCCIONES PARA INSTALAR LA APP EN PANTALLA DE INICIO -->
+  <div id="modalInstall" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalInstallTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalInstallTitle">📲 Instalar Jota Be Stock</h3>
+        <button class="modal-close-btn" data-close-modal="modalInstall" aria-label="Cerrar ventana">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="installInstructionsBox" class="modal-instructions">
+          Para instalar Jota Be Stock en tu pantalla de inicio: tocá el menú ⋮ (arriba a la derecha en Chrome) y seleccioná 'Instalar aplicación' o 'Agregar a la pantalla principal'.
+        </div>
+        <button type="button" class="modal-btn primary" data-close-modal="modalInstall">Entendido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toastNotification" class="toast-container" role="status" aria-live="polite">
+    <span id="toastMessage">Acción completada</span>
+  </div>
+
+  <!-- ==========================================================================
+       8. LÓGICA JAVASCRIPT (GITHUB PRIVATE REPO + OFFLINE CACHE + VIRTUAL RENDER)
+       ========================================================================== -->
+  <script>
+    (function () {
+      "use strict";
+
+      const CACHE_KEY = "jota_be_stock_cache";
+      const THEME_KEY = "jota_be_theme";
+      const TOKEN_STORAGE_KEY = "jota_be_gh_token";
+      const CLOUD_CFG_KEY = "jb_gh_cfg_v1";
+      const CHUNK_SIZE = 45;
+
+      const DEFAULT_GH_CONFIG = {
+        owner: "planning230289",
+        repo: "jotabe-stock",
+        path: "stock_data.json",
+        token: ""
+      };
+
+      // ------------------------------------------------------------------------
+      // AUTO-CONFIGURACIÓN SEGURA POR FRAGMENTO URL (#token=...)
+      // ------------------------------------------------------------------------
+      function consumeTokenFromHash() {
+        const hash = window.location.hash || "";
+        if (!hash || !hash.includes("token=")) return false;
+
+        let extractedToken = "";
+        try {
+          const cleanHash = hash.replace(/^#/, "");
+          const params = new URLSearchParams(cleanHash);
+          extractedToken = (params.get("token") || "").trim();
+          if (!extractedToken) {
+            const match = cleanHash.match(/(?:^|[&#?])token=([^&#]+)/i);
+            if (match && match[1]) {
+              extractedToken = decodeURIComponent(match[1]).trim();
+            }
+          }
+          if (extractedToken) {
+            const cfgObj = {
+              owner: DEFAULT_GH_CONFIG.owner,
+              repo: "planning230289/jotabe-stock",
+              path: DEFAULT_GH_CONFIG.path,
+              token: extractedToken
+            };
+            localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify(cfgObj));
+            localStorage.setItem(TOKEN_STORAGE_KEY, extractedToken);
+          }
+        } catch (err) {
+          console.warn("No se pudo guardar token desde el hash URL:", err);
+        } finally {
+          window.history.replaceState(null, "", window.location.pathname + window.location.search);
+        }
+        return Boolean(extractedToken);
+      }
+
+      const state = {
+        rawData: null,
+        filteredArticles: [],
+        renderedCount: 0,
+        activeBranch: "todas",
+        onlyWithStock: true,
+        hideZ: true,
+        searchQuery: "",
+        isOnline: false,
+        pendingFilePayload: null
+      };
+
+      let localServerAvailable = false;
+
+      const dom = {
+        articlesList: document.getElementById("articlesList"),
+        scrollSentinel: document.getElementById("scrollSentinel"),
+        searchInput: document.getElementById("searchInput"),
+        searchClearBtn: document.getElementById("searchClearBtn"),
+        chkOnlyStock: document.getElementById("chkOnlyStock"),
+        chipOnlyStock: document.getElementById("chipOnlyStock"),
+        chkHideZ: document.getElementById("chkHideZ"),
+        chipHideZ: document.getElementById("chipHideZ"),
+        branchSelector: document.getElementById("branchSelector"),
+        visibleCount: document.getElementById("visibleCount"),
+        totalCount: document.getElementById("totalCount"),
+        updateTimestampText: document.getElementById("updateTimestampText"),
+        headerStatusBadge: document.getElementById("headerStatusBadge"),
+        headerStatusText: document.getElementById("headerStatusText"),
+        headerStockDate: document.getElementById("headerStockDate"),
+        offlineBanner: document.getElementById("offlineBanner"),
+        offlineBannerMsg: document.getElementById("offlineBannerMsg"),
+        btnBannerRetry: document.getElementById("btnBannerRetry"),
+        btnRefresh: document.getElementById("btnRefresh"),
+        refreshIcon: document.getElementById("refreshIcon"),
+        btnInstallApp: document.getElementById("btn-install"),
+        modalInstall: document.getElementById("modalInstall"),
+        installInstructionsBox: document.getElementById("installInstructionsBox"),
+        btnToggleTheme: document.getElementById("btnToggleTheme"),
+        themeIcon: document.getElementById("themeIcon"),
+        btnOpenCloud: document.getElementById("btnOpenCloud"),
+        modalCloud: document.getElementById("modalCloud"),
+        githubTokenInput: document.getElementById("githubTokenInput"),
+        btnSaveToken: document.getElementById("btnSaveToken"),
+        btnOpenUpload: document.getElementById("btnOpenUpload"),
+        modalUpload: document.getElementById("modalUpload"),
+        fileInputUpload: document.getElementById("fileInputUpload"),
+        fileUploadStatus: document.getElementById("fileUploadStatus"),
+        btnSaveUploadedFile: document.getElementById("btnSaveUploadedFile"),
+        btnResetToDefault: document.getElementById("btnResetToDefault"),
+        btnToTop: document.getElementById("btnToTop"),
+        toast: document.getElementById("toastNotification"),
+        toastMessage: document.getElementById("toastMessage")
+      };
+
+      function normalize(str) {
+        if (!str) return "";
+        return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+      }
+
+      function formatStock(val) {
+        if (val === null || val === undefined || isNaN(val)) return "0";
+        const num = Number(val);
+        if (num === 0) return "0";
+        const isInteger = Math.abs(num - Math.round(num)) < 0.0001;
+        if (isInteger) return Math.round(num).toLocaleString("es-AR");
+        return num.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+      }
+
+      function formatDateTime(isoString) {
+        if (!isoString) return "--/-- --:--";
+        try {
+          const d = new Date(isoString);
+          if (isNaN(d.getTime())) return isoString.slice(0, 16);
+          const pad = (n) => String(n).padStart(2, "0");
+          return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        } catch {
+          return isoString.slice(0, 16);
+        }
+      }
+
+      let toastTimeout = null;
+      function showToast(msg) {
+        dom.toastMessage.textContent = msg;
+        dom.toast.classList.add("show");
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => dom.toast.classList.remove("show"), 2800);
+      }
+
+      // ------------------------------------------------------------------------
+      // TEMA CLARO / OSCURO
+      // ------------------------------------------------------------------------
+      function initTheme() {
+        const savedTheme = localStorage.getItem(THEME_KEY);
+        const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        setTheme(savedTheme || (prefersDark ? "dark" : "light"));
+      }
+
+      function setTheme(theme) {
+        if (theme === "dark") {
+          document.documentElement.setAttribute("data-theme", "dark");
+          dom.themeIcon.innerHTML = `<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`;
+        } else {
+          document.documentElement.removeAttribute("data-theme");
+          dom.themeIcon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
+        }
+        localStorage.setItem(THEME_KEY, theme);
+      }
+
+      dom.btnToggleTheme.addEventListener("click", () => {
+        const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+        setTheme(isDark ? "light" : "dark");
+      });
+
+      // ------------------------------------------------------------------------
+      // OBTENCIÓN DE CONFIGURACIÓN GITHUB PRIVADA
+      // ------------------------------------------------------------------------
+      function getSyncConfig() {
+        const embedded = window.GITHUB_SYNC_CONFIG || {};
+        let cloudCfg = {};
+        try {
+          const rawCloudCfg = localStorage.getItem(CLOUD_CFG_KEY);
+          if (rawCloudCfg) cloudCfg = JSON.parse(rawCloudCfg) || {};
+        } catch (err) {
+          console.warn("No se pudo parsear CLOUD_CFG_KEY:", err);
+        }
+
+        const savedToken = cloudCfg.token || localStorage.getItem(TOKEN_STORAGE_KEY) || "";
+        let owner = cloudCfg.owner || embedded.owner || DEFAULT_GH_CONFIG.owner;
+        let repo = cloudCfg.repo || embedded.repo || DEFAULT_GH_CONFIG.repo;
+        if (repo && repo.includes("/")) {
+          const parts = repo.split("/");
+          owner = parts[0] || owner;
+          repo = parts[1] || DEFAULT_GH_CONFIG.repo;
+        }
+
+        return {
+          owner: owner,
+          repo: repo,
+          path: cloudCfg.path || embedded.path || DEFAULT_GH_CONFIG.path,
+          token: savedToken || embedded.token || DEFAULT_GH_CONFIG.token
+        };
+      }
+
+      // ------------------------------------------------------------------------
+      // SINCRONIZACIÓN CON GITHUB PRIVADO + RESGUARDO OFFLINE
+      // ------------------------------------------------------------------------
+      async function syncWithLocalServer(silent = false) {
+        if (window.location.hostname.endsWith("github.io")) {
+          return false;
+        }
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        if (!silent) dom.refreshIcon.classList.add("spin");
+
+        try {
+          const response = await fetch("/api/stock", {
+            cache: "no-store",
+            signal: controller.signal
+          });
+          if (!response.ok) return false;
+
+          const data = await response.json();
+          if (!data || !Array.isArray(data.articulos)) {
+            console.error("La API local devolvió un formato de stock inválido");
+            return false;
+          }
+
+          localServerAvailable = true;
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+          } catch (error) {
+            console.warn("No se pudo guardar caché local:", error);
+          }
+
+          setStockDataset(data);
+          setOnlineState(true, data.updated_at);
+          if (!silent) showToast("✓ Stock actualizado desde la PC");
+          return true;
+        } catch (error) {
+          console.info("Servidor local no disponible:", error.message);
+          return false;
+        } finally {
+          clearTimeout(timeoutId);
+          if (!silent) dom.refreshIcon.classList.remove("spin");
+        }
+      }
+
+      async function syncWithLatestStock(silent = false) {
+        if (await syncWithLocalServer(silent)) return;
+        await syncWithCloud(silent);
+      }
+
+      async function initData() {
+        let cached = null;
+        try {
+          const rawCache = localStorage.getItem(CACHE_KEY);
+          if (rawCache) cached = JSON.parse(rawCache);
+        } catch (e) {
+          console.warn("No se pudo leer caché local:", e);
+        }
+
+        // Si el archivo embebido es más reciente que el localStorage, priorizar el embebido
+        if (window.STOCK_DATA && Array.isArray(window.STOCK_DATA.articulos)) {
+          if (!cached || (window.STOCK_DATA.updated_at && cached.updated_at && window.STOCK_DATA.updated_at > cached.updated_at)) {
+            cached = window.STOCK_DATA;
+          }
+        }
+
+        if (cached && Array.isArray(cached.articulos)) {
+          setStockDataset(cached);
+          setOnlineState(false, cached.updated_at);
+        } else {
+          // Evitar que la UI quede "cargando..." indefinidamente si no hay datos
+          dom.articlesList.innerHTML = `
+            <div class="empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <h3>Cargando stock…</h3>
+              <p>Si esto no avanza, verificá la conexión Wi-Fi o ingresá la llave privada de GitHub.</p>
+            </div>
+          `;
+          dom.scrollSentinel.style.display = "none";
+        }
+
+        await syncWithLatestStock(true);
+        if (localServerAvailable) {
+          window.setInterval(() => syncWithLocalServer(true), 30 * 60 * 1000);
+        }
+      }
+
+      async function syncWithCloud(silent = false) {
+        const cfg = getSyncConfig();
+        if (!cfg.token) {
+          if (!silent) {
+            dom.modalCloud.classList.add("open");
+            showToast("Ingresá tu llave privada de GitHub para sincronizar");
+          }
+          return;
+        }
+
+        dom.refreshIcon.classList.add("spin");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+        try {
+          // Pedimos el contenido crudo (raw) directo a la API privada con caché deshabilitada
+          const apiUrl = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${cfg.path}?t=${Date.now()}`;
+          const resp = await fetch(apiUrl, {
+            method: "GET",
+            cache: "no-store",
+            signal: controller.signal,
+            headers: {
+              "Authorization": `Bearer ${cfg.token}`,
+              "Accept": "application/vnd.github.raw+json",
+              "X-GitHub-Api-Version": "2022-11-28"
+            }
+          });
+          clearTimeout(timeoutId);
+
+          if (resp.status === 401 || resp.status === 403 || resp.status === 404) {
+            throw new Error(`Permiso denegado o archivo no subido aún (HTTP ${resp.status})`);
+          }
+          if (!resp.ok) {
+            throw new Error(`Error HTTP ${resp.status}`);
+          }
+
+          const data = await resp.json();
+          if (data && Array.isArray(data.articulos)) {
+            try {
+              localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+            } catch (err) {
+              console.warn("No se pudo guardar en localStorage:", err);
+            }
+
+            setStockDataset(data);
+            setOnlineState(true, data.updated_at);
+            if (!silent) showToast("✓ Stock actualizado desde la nube privada");
+          } else {
+            throw new Error("Formato de stock inválido");
+          }
+        } catch (err) {
+          clearTimeout(timeoutId);
+          console.info("Sin conexión o error sincronizando:", err.message);
+          if (state.rawData) {
+            setOnlineState(false, state.rawData.updated_at);
+          }
+          if (!silent) {
+            showToast("Sin conexión — Mostrando último stock guardado");
+          }
+        } finally {
+          dom.refreshIcon.classList.remove("spin");
+        }
+      }
+
+      function setOnlineState(online, updatedAt) {
+        state.isOnline = online;
+        if (online) {
+          dom.headerStatusBadge.className = "status-badge online";
+          dom.headerStatusText.textContent = "En Línea";
+          dom.offlineBanner.classList.remove("visible");
+        } else {
+          dom.headerStatusBadge.className = "status-badge offline";
+          dom.headerStatusText.textContent = "Modo Offline";
+          const dateStr = formatDateTime(updatedAt);
+          dom.offlineBannerMsg.textContent = `Modo Fuera de Línea — Stock al: ${dateStr} hs`;
+          dom.offlineBanner.classList.add("visible");
+        }
+      }
+
+      function setStockDataset(payload) {
+        state.rawData = payload;
+        const total = payload.total_articulos || (payload.articulos ? payload.articulos.length : 0);
+        dom.totalCount.textContent = total.toLocaleString("es-AR");
+
+        const dateStr = formatDateTime(payload.updated_at);
+        dom.updateTimestampText.textContent = `Actualizado: ${dateStr}`;
+
+        if (payload.updated_at) {
+          dom.headerStockDate.innerHTML = `<strong>Stock al:</strong> ${dateStr} hs`;
+          dom.headerStockDate.classList.add("visible");
+        }
+        applyFilters();
+      }
+
+      dom.btnRefresh.addEventListener("click", () => syncWithLatestStock(false));
+      dom.btnBannerRetry.addEventListener("click", () => syncWithLatestStock(false));
+
+      // ------------------------------------------------------------------------
+      // MODAL DE CONFIGURACIÓN DE TOKEN GITHUB
+      // ------------------------------------------------------------------------
+      dom.btnOpenCloud.addEventListener("click", () => {
+        const cfg = getSyncConfig();
+        dom.githubTokenInput.value = cfg.token || "";
+        dom.modalCloud.classList.add("open");
+      });
+
+      dom.btnSaveToken.addEventListener("click", () => {
+        const val = dom.githubTokenInput.value.trim();
+        if (!val) {
+          showToast("Pegá un token válido");
+          return;
+        }
+        const cfgObj = {
+          owner: DEFAULT_GH_CONFIG.owner,
+          repo: "planning230289/jotabe-stock",
+          path: DEFAULT_GH_CONFIG.path,
+          token: val
+        };
+        localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify(cfgObj));
+        localStorage.setItem(TOKEN_STORAGE_KEY, val);
+        dom.modalCloud.classList.remove("open");
+        syncWithCloud(false);
+      });
+
+      // ------------------------------------------------------------------------
+      // MOTOR DE BÚSQUEDA Y FILTRADO
+      // ------------------------------------------------------------------------
+      function applyFilters() {
+        if (!state.rawData || !Array.isArray(state.rawData.articulos)) {
+          state.filteredArticles = [];
+          renderBatch();
+          return;
+        }
+
+        const queryNorm = normalize(state.searchQuery);
+        const tokens = queryNorm.split(/\s+/).filter(Boolean);
+        const onlyStock = state.onlyWithStock;
+        const hideZ = state.hideZ;
+        const branch = state.activeBranch;
+
+        const results = [];
+        const items = state.rawData.articulos;
+
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (hideZ && item.descr.toUpperCase().startsWith("Z-")) continue;
+          if (onlyStock && !item.con_stock) continue;
+          if (branch !== "todas" && (Number(item[branch]) || 0) <= 0) continue;
+
+          if (tokens.length > 0) {
+            const artCode = String(item.art);
+            const descrNorm = normalize(item.descr);
+            let matchesAll = true;
+            for (let t = 0; t < tokens.length; t++) {
+              if (!descrNorm.includes(tokens[t]) && !artCode.includes(tokens[t])) {
+                matchesAll = false;
+                break;
+              }
+            }
+            if (!matchesAll) continue;
+          }
+          results.push(item);
+        }
+
+        state.filteredArticles = results;
+        dom.visibleCount.textContent = results.length.toLocaleString("es-AR");
+        state.renderedCount = 0;
+        dom.articlesList.innerHTML = "";
+        renderBatch();
+      }
+
+      function renderBatch() {
+        const items = state.filteredArticles;
+        const total = items.length;
+
+        if (total === 0) {
+          dom.articlesList.innerHTML = `
+            <div class="empty-state">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <h3>No se encontraron artículos</h3>
+              <p>Probá cambiando las palabras de búsqueda o desactivando los filtros.</p>
+              <button id="btnResetFilters" type="button">Restablecer filtros</button>
+            </div>
+          `;
+          const btnReset = document.getElementById("btnResetFilters");
+          if (btnReset) btnReset.addEventListener("click", resetFilters);
+          dom.scrollSentinel.style.display = "none";
+          return;
+        }
+
+        const start = state.renderedCount;
+        const end = Math.min(start + CHUNK_SIZE, total);
+        if (start >= end) {
+          dom.scrollSentinel.style.display = "none";
+          return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        const activeBranch = state.activeBranch;
+        for (let i = start; i < end; i++) {
+          fragment.appendChild(createProductCardElement(items[i], activeBranch));
+        }
+
+        dom.articlesList.appendChild(fragment);
+        state.renderedCount = end;
+
+        if (state.renderedCount < total) {
+          dom.scrollSentinel.style.display = "flex";
+          dom.scrollSentinel.textContent = `Cargando más artículos (${state.renderedCount} de ${total})...`;
+        } else {
+          dom.scrollSentinel.style.display = "none";
+        }
+      }
+
+      function createProductCardElement(item, selectedBranch) {
+        const card = document.createElement("article");
+        card.className = "product-card";
+
+        const totalStock = Number(item.total) || 0;
+        const totalPillClass = totalStock > 0 ? "positive" : "zero";
+
+        const branches = [
+          { key: "corrientes", name: "Corrientes" },
+          { key: "resguardo", name: "Resguardo" },
+          { key: "misiones", name: "Misiones" },
+          { key: "formosa", name: "Formosa" },
+          { key: "chaco", name: "Chaco" }
+        ];
+
+        let branchesHtml = "";
+        for (let i = 0; i < branches.length; i++) {
+          const b = branches[i];
+          const val = Number(item[b.key]) || 0;
+          let colClass = "branch-col";
+          if (selectedBranch === b.key) colClass += " selected-branch";
+          colClass += val > 0 ? " has-stock" : " is-zero";
+
+          branchesHtml += `
+            <div class="${colClass}">
+              <span class="branch-name" title="${b.name}">${b.name}</span>
+              <span class="branch-value">${formatStock(val)}</span>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="card-top-row">
+            <div class="art-badge-wrapper">
+              <span class="art-badge">#${item.art}</span>
+              <h2 class="product-title">${escapeHtml(item.descr)}</h2>
+            </div>
+            <div class="total-stock-badge">
+              <span class="total-label">Stock Total</span>
+              <span class="total-number-pill ${totalPillClass}">${formatStock(totalStock)}</span>
+            </div>
+          </div>
+          <div class="branches-grid">${branchesHtml}</div>
+        `;
+        return card;
+      }
+
+      function escapeHtml(text) {
+        if (!text) return "";
+        return text.replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      }
+
+      function resetFilters() {
+        state.searchQuery = "";
+        dom.searchInput.value = "";
+        dom.searchClearBtn.classList.remove("visible");
+        state.onlyWithStock = false;
+        dom.chkOnlyStock.checked = false;
+        dom.chipOnlyStock.classList.remove("active");
+        state.hideZ = false;
+        dom.chkHideZ.checked = false;
+        dom.chipHideZ.classList.remove("active");
+        state.activeBranch = "todas";
+        updateBranchPillsUI("todas");
+        applyFilters();
+      }
+
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && state.renderedCount < state.filteredArticles.length) renderBatch();
+        });
+      }, { rootMargin: "300px 0px" });
+      observer.observe(dom.scrollSentinel);
+
+      let searchDebounce = null;
+      dom.searchInput.addEventListener("input", (e) => {
+        const val = e.target.value;
+        state.searchQuery = val;
+        dom.searchClearBtn.classList.toggle("visible", val.trim().length > 0);
+        clearTimeout(searchDebounce);
+        searchDebounce = setTimeout(() => applyFilters(), 120);
+      });
+
+      dom.searchClearBtn.addEventListener("click", () => {
+        dom.searchInput.value = "";
+        state.searchQuery = "";
+        dom.searchClearBtn.classList.remove("visible");
+        dom.searchInput.focus();
+        applyFilters();
+      });
+
+      dom.chkOnlyStock.addEventListener("change", (e) => {
+        state.onlyWithStock = e.target.checked;
+        dom.chipOnlyStock.classList.toggle("active", state.onlyWithStock);
+        applyFilters();
+      });
+
+      dom.chkHideZ.addEventListener("change", (e) => {
+        state.hideZ = e.target.checked;
+        dom.chipHideZ.classList.toggle("active", state.hideZ);
+        applyFilters();
+      });
+
+      dom.branchSelector.addEventListener("click", (e) => {
+        const pill = e.target.closest(".branch-pill");
+        if (!pill) return;
+        const branch = pill.getAttribute("data-branch");
+        if (!branch) return;
+        state.activeBranch = branch;
+        updateBranchPillsUI(branch);
+        applyFilters();
+      });
+
+      function updateBranchPillsUI(branchKey) {
+        dom.branchSelector.querySelectorAll(".branch-pill").forEach(p => {
+          p.classList.toggle("active", p.getAttribute("data-branch") === branchKey);
+        });
+      }
+
+      window.addEventListener("scroll", () => {
+        dom.btnToTop.classList.toggle("visible", window.scrollY > 350);
+      }, { passive: true });
+
+      dom.btnToTop.addEventListener("click", () => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        dom.searchInput.focus();
+      });
+
+      // ------------------------------------------------------------------------
+      // MODAL CARGA MANUAL DE ARCHIVO
+      // ------------------------------------------------------------------------
+      dom.btnOpenUpload.addEventListener("click", () => {
+        dom.modalUpload.classList.add("open");
+        dom.fileUploadStatus.style.display = "none";
+        dom.btnSaveUploadedFile.style.display = "none";
+        state.pendingFilePayload = null;
+        dom.fileInputUpload.value = "";
+      });
+
+      dom.fileInputUpload.addEventListener("change", async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        showToast("Procesando archivo...");
+        try {
+          let payload;
+          const fileName = file.name.toLowerCase();
+          if (fileName.endsWith(".csv")) {
+            payload = parseCsvContent(await file.text(), file.name);
+          } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+            if (typeof XLSX === "undefined") throw new Error("Librería Excel no embebida. Exportá como CSV.");
+            payload = parseExcelContent(await file.arrayBuffer(), file.name);
+          } else {
+            throw new Error("Formato no soportado. Elegí .xlsx o .csv");
+          }
+
+          state.pendingFilePayload = payload;
+          dom.fileUploadStatus.style.display = "block";
+          dom.fileUploadStatus.innerHTML = `✓ Archivo leído: <strong>${payload.articulos.length.toLocaleString("es-AR")}</strong> artículos.`;
+          dom.btnSaveUploadedFile.style.display = "block";
+        } catch (err) {
+          dom.fileUploadStatus.style.display = "block";
+          dom.fileUploadStatus.style.backgroundColor = "#fee2e2";
+          dom.fileUploadStatus.style.color = "#991b1b";
+          dom.fileUploadStatus.textContent = `Error: ${err.message}`;
+          dom.btnSaveUploadedFile.style.display = "none";
+        }
+      });
+
+      dom.btnSaveUploadedFile.addEventListener("click", () => {
+        if (!state.pendingFilePayload) return;
+        localStorage.setItem(CACHE_KEY, JSON.stringify(state.pendingFilePayload));
+        setStockDataset(state.pendingFilePayload);
+        setOnlineState(false, state.pendingFilePayload.updated_at);
+        dom.modalUpload.classList.remove("open");
+        showToast("✓ Archivo guardado en el teléfono");
+      });
+
+      dom.btnResetToDefault.addEventListener("click", () => {
+        localStorage.removeItem(CACHE_KEY);
+        syncWithCloud(false);
+        dom.modalUpload.classList.remove("open");
+      });
+
+      function parseCsvContent(csvText, fileName) {
+        const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
+        if (lines.length < 2) throw new Error("El CSV no tiene filas suficientes.");
+        const firstLine = lines[0];
+        const sep = firstLine.includes(";") && !firstLine.includes("\t") ? ";" : (firstLine.includes("\t") ? "\t" : ",");
+        const headers = firstLine.split(sep).map(h => normalize(h));
+        const idx = (fn, def) => { const i = headers.findIndex(fn); return i === -1 ? def : i; };
+        const artIdx = idx(h => h.includes("art") || h.includes("cod"), 0);
+        const descrIdx = idx(h => h.includes("descr") || h.includes("prod") || h.includes("nom"), 1);
+        const corrIdx = idx(h => h.includes("corr"), 2);
+        const resgIdx = idx(h => h.includes("resg"), 3);
+        const misiIdx = idx(h => h.includes("misi"), 4);
+        const formIdx = idx(h => h.includes("form"), 5);
+        const chacIdx = idx(h => h.includes("chac"), 6);
+
+        const parseNum = (val) => {
+          if (!val) return 0;
+          const n = parseFloat(String(val).replace(/\./g, "").replace(",", ".").trim());
+          return isNaN(n) ? 0 : n;
+        };
+
+        const articulos = [];
+        let conStockCount = 0;
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(sep);
+          if (cols.length < 2) continue;
+          const artVal = parseInt(cols[artIdx], 10) || i;
+          const descrVal = cols[descrIdx] ? cols[descrIdx].trim() : `ARTÍCULO ${artVal}`;
+          const corr = parseNum(cols[corrIdx]);
+          const resg = parseNum(cols[resgIdx]);
+          const misi = parseNum(cols[misiIdx]);
+          const form = parseNum(cols[formIdx]);
+          const chac = parseNum(cols[chacIdx]);
+          const total = corr + resg + misi + form + chac;
+          const conStock = total > 0.0001;
+          if (conStock) conStockCount++;
+          articulos.push({ art: artVal, descr: descrVal, corrientes: corr, resguardo: resg, misiones: misi, formosa: form, chaco: chac, total: total, con_stock: conStock });
+        }
+        return { updated_at: new Date().toISOString(), source_file: fileName, total_articulos: articulos.length, articulos_con_stock: conStockCount, articulos: articulos };
+      }
+
+      function parseExcelContent(arrayBuffer, fileName) {
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        const jsonRows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+        if (!jsonRows || jsonRows.length < 2) throw new Error("Planilla Excel vacía.");
+        let headerRowIdx = 0;
+        for (let r = 0; r < Math.min(jsonRows.length, 10); r++) {
+          const rowStr = jsonRows[r].map(c => normalize(String(c))).join(" ");
+          if (rowStr.includes("art") || rowStr.includes("descr") || rowStr.includes("corr")) { headerRowIdx = r; break; }
+        }
+        const headers = jsonRows[headerRowIdx].map(h => normalize(String(h)));
+        const idx = (fn, def) => { const i = headers.findIndex(fn); return i === -1 ? def : i; };
+        const artIdx = idx(h => h.includes("art") || h.includes("cod"), 0);
+        const descrIdx = idx(h => h.includes("descr") || h.includes("prod"), 1);
+        const corrIdx = idx(h => h.includes("corr"), 2);
+        const resgIdx = idx(h => h.includes("resg"), 3);
+        const misiIdx = idx(h => h.includes("misi"), 4);
+        const formIdx = idx(h => h.includes("form"), 5);
+        const chacIdx = idx(h => h.includes("chac"), 6);
+
+        const parseNum = (val) => {
+          if (typeof val === "number") return val;
+          if (!val) return 0;
+          const n = parseFloat(String(val).replace(/\./g, "").replace(",", ".").trim());
+          return isNaN(n) ? 0 : n;
+        };
+
+        const articulos = [];
+        let conStockCount = 0;
+        for (let i = headerRowIdx + 1; i < jsonRows.length; i++) {
+          const row = jsonRows[i];
+          if (!row || row.length === 0) continue;
+          const artVal = parseInt(row[artIdx], 10) || i;
+          const descrVal = row[descrIdx] ? String(row[descrIdx]).trim() : `ARTÍCULO ${artVal}`;
+          const corr = parseNum(row[corrIdx]);
+          const resg = parseNum(row[resgIdx]);
+          const misi = parseNum(row[misiIdx]);
+          const form = parseNum(row[formIdx]);
+          const chac = parseNum(row[chacIdx]);
+          const total = corr + resg + misi + form + chac;
+          const conStock = total > 0.0001;
+          if (conStock) conStockCount++;
+          articulos.push({ art: artVal, descr: descrVal, corrientes: corr, resguardo: resg, misiones: misi, formosa: form, chaco: chac, total: total, con_stock: conStock });
+        }
+        return { updated_at: new Date().toISOString(), source_file: fileName, total_articulos: articulos.length, articulos_con_stock: conStockCount, articulos: articulos };
+      }
+
+      document.querySelectorAll("[data-close-modal]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const m = document.getElementById(btn.getAttribute("data-close-modal"));
+          if (m) m.classList.remove("open");
+        });
+      });
+
+      document.querySelectorAll(".modal-backdrop").forEach(backdrop => {
+        backdrop.addEventListener("click", (e) => {
+          if (e.target === backdrop) backdrop.classList.remove("open");
+        });
+      });
+
+      // ------------------------------------------------------------------------
+      // ARRANQUE Y SERVICE WORKER
+      // ------------------------------------------------------------------------
+      let deferredInstallPrompt = null;
+
+      function initAppInstall() {
+        const isStandalone = window.matchMedia("(display-mode: standalone)").matches
+          || window.navigator.standalone === true;
+        if (isStandalone) {
+          dom.btnInstallApp.hidden = true;
+          return;
+        }
+        dom.btnInstallApp.hidden = false;
+
+        window.addEventListener("beforeinstallprompt", (event) => {
+          event.preventDefault();
+          deferredInstallPrompt = event;
+          dom.btnInstallApp.hidden = false;
+        });
+
+        window.addEventListener("appinstalled", () => {
+          deferredInstallPrompt = null;
+          dom.btnInstallApp.hidden = true;
+          showToast("Aplicación instalada");
+        });
+
+        dom.btnInstallApp.addEventListener("click", async () => {
+          if (deferredInstallPrompt) {
+            const installPrompt = deferredInstallPrompt;
+            deferredInstallPrompt = null;
+            await installPrompt.prompt();
+            const choice = await installPrompt.userChoice;
+            if (choice.outcome === "accepted") showToast("Instalación iniciada");
+            return;
+          }
+
+          const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent)
+            || (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
+          const msgIos = "Tocá Compartir ⎋ y luego 'Agregar a inicio'";
+          const msgAndroid = "Para instalar Jota Be Stock en tu pantalla de inicio: tocá el menú ⋮ (arriba a la derecha en Chrome) y seleccioná 'Instalar aplicación' o 'Agregar a la pantalla principal'";
+
+          if (dom.installInstructionsBox && dom.modalInstall) {
+            dom.installInstructionsBox.textContent = isIos ? msgIos : msgAndroid;
+            dom.modalInstall.classList.add("open");
+          }
+          showToast(isIos ? msgIos : msgAndroid);
+        });
+      }
+
+      consumeTokenFromHash();
+      initAppInstall();
+      initTheme();
+      initData();
+
+      if ("serviceWorker" in navigator && window.location.protocol.startsWith("http")) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js", { scope: "./" }).catch((error) => {
+            console.error("No se pudo registrar el service worker:", error);
+          });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
