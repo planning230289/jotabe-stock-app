@@ -1,5 +1,5 @@
 /* 1. CONFIGURACION DE CACHE DEL SERVICE WORKER */
-const CACHE_NAME = "jotabe-stock-v4";
+const CACHE_NAME = "jotabe-stock-v5";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
